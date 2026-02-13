@@ -543,6 +543,19 @@ APP_SCAN_TIMEOUT="60"
 # DEFAULT VALUE: '120'
 BOOT_TIMEOUT="120"
 
+# [ADMIN/CONSOLE SESSION]
+# NOTES:
+# - Connect to the admin/console session (Session 0) instead of creating a new virtual session.
+# - This is the same session shown on the Windows physical monitor.
+# - On macOS, adds 'administrative session:i:1' to the .rdp file.
+# - On Linux, adds '/admin' to the FreeRDP command.
+# - Can also be enabled per-invocation with 'winapps --admin <app>'.
+# DEFAULT VALUE: '' (BLANK/disabled)
+# VALID VALUES:
+# - '' (disabled)
+# - 'true' (enabled)
+RDP_ADMIN=""
+
 # FREERDP RAIL HIDEF
 # - This option controls the value of the `hidef` option passed to the /app parameter of the FreeRDP command.
 # - Setting this option to 'off' may resolve window misalignment issues related to maximized windows.
@@ -573,6 +586,7 @@ HIDEF="on"
 - To enable non-English input and seamless language switching, you can try adding `/kbd:unicode` to `RDP_FLAGS`. This ensures client inputs are sent as Unicode sequences.
 - If you enable `DEBUG`, a log will be created on each application start in `~/.local/share/winapps/winapps.log`.
 - If using a system on which the FreeRDP command is not `xfreerdp` or `xfreerdp3`, the correct command can be specified using `FREERDP_COMMAND`.
+- To connect to the admin/console session (Session 0) instead of a new virtual session, set `RDP_ADMIN="true"` in the config file or pass `--admin` on the command line (e.g. `winapps --admin word`).
 
 ### Step 4: Test FreeRDP
 1. Test establishing an RDP session by running the following command, replacing the `/u:`, `/p:`, and `/v:` values with the correct values specified in `~/.config/winapps/winapps.conf`.

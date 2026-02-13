@@ -104,6 +104,7 @@ RDP_SCALE=100        # Imported variable.
 RDP_FLAGS=""         # Imported variable.
 DEBUG="true"         # Imported variable.
 FREERDP_COMMAND=""   # Imported variable.
+RDP_ADMIN=""         # Imported variable.
 
 PORT_TIMEOUT=5      # Default port check timeout.
 RDP_TIMEOUT=30      # Default RDP connection test timeout.
@@ -1235,9 +1236,12 @@ function waCheckRDPAccess() {
         CMD_STRING="/C type NUL > $TEST_PATH_WIN && tsdiscon"
     fi
 
+    local ADMIN_FLAG=""
+    [ "$RDP_ADMIN" = "true" ] && ADMIN_FLAG="/admin"
     # shellcheck disable=SC2140,SC2027,SC2086 # Disable warnings regarding unquoted strings.
     $FREERDP_COMMAND \
         $RDP_FLAGS_NON_WINDOWS \
+        $ADMIN_FLAG \
         /cert:ignore \
         /d:"$RDP_DOMAIN" \
         /u:"$RDP_USER" \
@@ -1378,9 +1382,12 @@ function waFindInstalled() {
     # Silently execute the batch script within Windows in the background (Log Output To File)
     # Note: The following final line is expected within the log, indicating successful execution of the 'tsdiscon' command and termination of the RDP session.
     # [INFO][com.freerdp.core] - [rdp_print_errinfo]: ERRINFO_LOGOFF_BY_USER (0x0000000C):The disconnection was initiated by the user logging off their session on the server.
+    local ADMIN_FLAG=""
+    [ "$RDP_ADMIN" = "true" ] && ADMIN_FLAG="/admin"
     # shellcheck disable=SC2140,SC2027,SC2086 # Disable warnings regarding unquoted strings.
     $FREERDP_COMMAND \
         $RDP_FLAGS_NON_WINDOWS \
+        $ADMIN_FLAG \
         /cert:ignore \
         /d:"$RDP_DOMAIN" \
         /u:"$RDP_USER" \
@@ -1525,6 +1532,13 @@ MimeType=${MIME_TYPES}"
     fi
 
     # Store the bash script for the application.
+    # Skip if a non-winapps file already exists (e.g. VS Code's 'code' CLI).
+    # On macOS (case-insensitive FS), 'Code' and 'code' collide.
+    if [ -e "${BIN_PATH}/${1}" ] && ! grep -q "winapps" "${BIN_PATH}/${1}" 2>/dev/null; then
+        echo -e "\n${WARNING_TEXT}[WARNING]${CLEAR_TEXT} '${BIN_PATH}/${1}' already exists. Use 'winapps ${1}' to launch this app."
+        return
+    fi
+
     echo "$APP_BASH" | $SUDO tee "${BIN_PATH}/${1}" &>/dev/null
 
     # Mark bash script as executable.
