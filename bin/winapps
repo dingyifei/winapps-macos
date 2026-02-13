@@ -185,6 +185,27 @@ function waNotify() {
     fi
 }
 
+# Name: 'waStoreCredentialMacOS'
+# Role: Store RDP credentials in the macOS Keychain so "Windows App" can use them.
+function waStoreCredentialMacOS() {
+    [ "$PLATFORM" != "Darwin" ] && return
+    [ -z "$RDP_PASS" ] && return
+
+    local ACCOUNT="${RDP_USER}"
+    [ -n "$RDP_DOMAIN" ] && ACCOUNT="${RDP_DOMAIN}\\${RDP_USER}"
+
+    # Remove stale entry (ignore errors if not found).
+    security delete-generic-password -s "WinApps-${RDP_IP}" -a "${ACCOUNT}" 2>/dev/null
+    # Store fresh credential (-U updates if exists).
+    security add-generic-password \
+        -a "${ACCOUNT}" \
+        -s "WinApps-${RDP_IP}" \
+        -w "${RDP_PASS}" \
+        -l "WinApps: ${RDP_IP}:${RDP_PORT}" \
+        -U 2>/dev/null
+    dprint "Stored RDP credential in macOS Keychain for ${ACCOUNT}@${RDP_IP}"
+}
+
 # Name: 'generate_rdp'
 # Role: Generate a .rdp file for macOS and return the path.
 function generate_rdp() {
@@ -200,6 +221,10 @@ function generate_rdp() {
         echo "full address:s:${RDP_IP}:${RDP_PORT}"
         echo "username:s:${RDP_USER}"
         echo "domain:s:${RDP_DOMAIN}"
+        if [ -n "$RDP_PASS" ]; then
+            echo "password:s:${RDP_PASS}"
+            echo "prompt for credentials:i:0"
+        fi
         echo "drivestoredirect:s:*"
         echo "redirectclipboard:i:1"
         echo "autoreconnection enabled:i:1"
@@ -750,16 +775,20 @@ function waRunCommand() {
             local APP_CMDLINE=""
             if [ -n "$2" ]; then
                 # Convert UNIX path to Windows tsclient path.
-                FILE_PATH=$(echo "$2" | sed -e 's|^'"${HOME}"'|'"${TSCLIENT_HOME}"'|' -e 's|/|\\|g')
+                # Use bash parameter expansion instead of sed to avoid
+                # backslash escape interpretation in TSCLIENT_HOME.
+                FILE_PATH="${2/#${HOME}/${TSCLIENT_HOME}}"
+                FILE_PATH="${FILE_PATH//\//\\}"
                 dprint "UNIX_FILE_PATH: ${2}"
                 dprint "WINDOWS_FILE_PATH: ${FILE_PATH}"
-                APP_CMDLINE="$FILE_PATH"
+                APP_CMDLINE="\"${FILE_PATH}\""
             fi
             dprint "MACOS APP: ${1} (${WIN_EXECUTABLE})"
             RDP_FILE=$(generate_rdp "remoteapp" "$1" "$WIN_EXECUTABLE" "$APP_CMDLINE")
         fi
 
         dprint "RDP_FILE: ${RDP_FILE}"
+        waStoreCredentialMacOS
         open "$RDP_FILE"
         return
     fi
