@@ -35,7 +35,7 @@ readonly PLATFORM="$(uname -s)"
 
 # OTHER
 readonly CONTAINER_NAME="WinApps" # FOR 'docker' AND 'podman' ONLY
-readonly RDP_PORT=3389
+RDP_PORT=3389
 readonly DOCKER_IP="127.0.0.1"
 # shellcheck disable=SC2155 # Silence warnings regarding masking return values through simultaneous declaration and assignment.
 readonly RUNID="${RANDOM}"
