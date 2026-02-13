@@ -195,14 +195,14 @@ function waStoreCredentialMacOS() {
     [ -n "$RDP_DOMAIN" ] && ACCOUNT="${RDP_DOMAIN}\\${RDP_USER}"
 
     # Remove stale entry (ignore errors if not found).
-    security delete-generic-password -s "WinApps-${RDP_IP}" -a "${ACCOUNT}" 2>/dev/null
+    security delete-generic-password -s "WinApps-${RDP_IP}" -a "${ACCOUNT}" >/dev/null 2>&1
     # Store fresh credential (-U updates if exists).
     security add-generic-password \
         -a "${ACCOUNT}" \
         -s "WinApps-${RDP_IP}" \
         -w "${RDP_PASS}" \
         -l "WinApps: ${RDP_IP}:${RDP_PORT}" \
-        -U 2>/dev/null
+        -U >/dev/null 2>&1
     dprint "Stored RDP credential in macOS Keychain for ${ACCOUNT}@${RDP_IP}"
 }
 
