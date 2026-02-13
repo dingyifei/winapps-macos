@@ -62,6 +62,7 @@ RDP_FLAGS_WINDOWS=""
 RDP_FLAGS_NON_WINDOWS=""
 TSCLIENT_HOME=""
 RDP_ADMIN=""
+AUTO_DISCONNECT="off"
 
 # OTHER
 FREERDP_PID=-1
@@ -233,9 +234,16 @@ function generate_rdp() {
         fi
         if [ "$MODE" = "remoteapp" ]; then
             echo "remoteapplicationmode:i:1"
-            echo "remoteapplicationprogram:s:${APP_EXE}"
+            if [ "$AUTO_DISCONNECT" = "on" ]; then
+                # shellcheck disable=SC2028 # Backslashes are literal Windows paths in .rdp file output.
+                echo "remoteapplicationprogram:s:C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+                # shellcheck disable=SC2028
+                echo "remoteapplicationcmdline:s:-WindowStyle Hidden -ExecutionPolicy Bypass -File \"C:\\ProgramData\\WinApps\\winapps-disconnect.ps1\" \"${APP_EXE}\" ${APP_CMDLINE}"
+            else
+                echo "remoteapplicationprogram:s:${APP_EXE}"
+                echo "remoteapplicationcmdline:s:${APP_CMDLINE}"
+            fi
             echo "remoteapplicationname:s:${APP_NAME}"
-            echo "remoteapplicationcmdline:s:${APP_CMDLINE}"
             echo "disableremoteappcapscheck:i:1"
         else
             echo "desktopwidth:i:1920"
