@@ -21,6 +21,7 @@ readonly EC_INVALID_FLAVOR=15
 # PATHS
 readonly APPDATA_PATH="${HOME}/.local/share/winapps"
 readonly SYS_APP_PATH="/usr/local/share/winapps"
+readonly BREW_APP_PATH="${SCRIPT_DIR_PATH}/../share/winapps"
 readonly LASTRUN_PATH="${APPDATA_PATH}/lastrun"
 readonly LOG_PATH="${APPDATA_PATH}/winapps.log"
 readonly CONFIG_PATH="${HOME}/.config/winapps/winapps.conf"
@@ -60,6 +61,7 @@ HIDEF="on"
 RDP_FLAGS_WINDOWS=""
 RDP_FLAGS_NON_WINDOWS=""
 TSCLIENT_HOME=""
+RDP_ADMIN=""
 
 # OTHER
 FREERDP_PID=-1
@@ -201,6 +203,9 @@ function generate_rdp() {
         echo "drivestoredirect:s:*"
         echo "redirectclipboard:i:1"
         echo "autoreconnection enabled:i:1"
+        if [ "$RDP_ADMIN" = "true" ]; then
+            echo "administrative session:i:1"
+        fi
         if [ "$MODE" = "remoteapp" ]; then
             echo "remoteapplicationmode:i:1"
             echo "remoteapplicationprogram:s:${APP_EXE}"
@@ -676,12 +681,44 @@ function waCheckPortOpen() {
     fi
 }
 
+# Name: 'waListApps'
+# Role: List all installed WinApps applications.
+function waListApps() {
+    local -A SEEN_APPS
+    local APP_DIRS=(
+        "${SCRIPT_DIR_PATH}/../apps"
+        "${BREW_APP_PATH}/apps"
+        "${APPDATA_PATH}/apps"
+        "${SYS_APP_PATH}/apps"
+    )
+
+    for DIR in "${APP_DIRS[@]}"; do
+        [ -d "$DIR" ] || continue
+        for APP_DIR in "$DIR"/*/; do
+            [ -f "${APP_DIR}info" ] || continue
+            local APP_KEY
+            APP_KEY="$(basename "$APP_DIR")"
+            [ -z "${SEEN_APPS[$APP_KEY]+x}" ] || continue
+            SEEN_APPS[$APP_KEY]=1
+            # Source info file to read FULL_NAME.
+            local FULL_NAME=""
+            # shellcheck disable=SC2034 # NAME is used by sourced info files.
+            local NAME=""
+            # shellcheck source=/dev/null # Exclude app info file from being checked by ShellCheck.
+            source "${APP_DIR}info"
+            printf "  %-30s %s\n" "$APP_KEY" "$FULL_NAME"
+        done
+    done
+}
+
 # Name: 'waRunCommand'
 # Role: Run the requested WinApps command.
 function waRunCommand() {
     # Declare variables.
     local ICON=""
     local FILE_PATH=""
+    local ADMIN_FLAG=""
+    [ "$RDP_ADMIN" = "true" ] && ADMIN_FLAG="/admin"
 
     # macOS: generate .rdp files and open with Microsoft "Windows App".
     if [ "$PLATFORM" = "Darwin" ]; then
@@ -695,10 +732,16 @@ function waRunCommand() {
         else
             # Named app — resolve info file.
             if [ -e "${SCRIPT_DIR_PATH}/../apps/${1}/info" ]; then
+                # shellcheck source=/dev/null # Exclude app info file from being checked by ShellCheck.
                 source "${SCRIPT_DIR_PATH}/../apps/${1}/info"
+            elif [ -e "${BREW_APP_PATH}/apps/${1}/info" ]; then
+                # shellcheck source=/dev/null # Exclude app info file from being checked by ShellCheck.
+                source "${BREW_APP_PATH}/apps/${1}/info"
             elif [ -e "${APPDATA_PATH}/apps/${1}/info" ]; then
+                # shellcheck source=/dev/null # Exclude app info file from being checked by ShellCheck.
                 source "${APPDATA_PATH}/apps/${1}/info"
             elif [ -e "${SYS_APP_PATH}/apps/${1}/info" ]; then
+                # shellcheck source=/dev/null # Exclude app info file from being checked by ShellCheck.
                 source "${SYS_APP_PATH}/apps/${1}/info"
             else
                 waThrowExit "$EC_UNSUPPORTED_APP"
@@ -731,6 +774,7 @@ function waRunCommand() {
         # shellcheck disable=SC2086 #Disable warning for globbing and word splitting
         $FREERDP_COMMAND \
             $RDP_FLAGS_WINDOWS \
+            $ADMIN_FLAG \
             /d:"$RDP_DOMAIN" \
             /u:"$RDP_USER" \
             /p:"$RDP_PASS" \
@@ -749,6 +793,7 @@ function waRunCommand() {
         # shellcheck disable=SC2086 #Disable warning for globbing and word splitting
         $FREERDP_COMMAND \
             $RDP_FLAGS_NON_WINDOWS \
+            $ADMIN_FLAG \
             /d:"$RDP_DOMAIN" \
             /u:"$RDP_USER" \
             /p:"$RDP_PASS" \
@@ -765,6 +810,10 @@ function waRunCommand() {
             # shellcheck source=/dev/null # Exclude this file from being checked by ShellCheck.
             source "${SCRIPT_DIR_PATH}/../apps/${1}/info"
             ICON="${SCRIPT_DIR_PATH}/../apps/${1}/icon.svg"
+        elif [ -e "${BREW_APP_PATH}/apps/${1}/info" ]; then
+            # shellcheck source=/dev/null # Exclude this file from being checked by ShellCheck.
+            source "${BREW_APP_PATH}/apps/${1}/info"
+            ICON="${BREW_APP_PATH}/apps/${1}/icon.svg"
         elif [ -e "${APPDATA_PATH}/apps/${1}/info" ]; then
             # shellcheck source=/dev/null # Exclude this file from being checked by ShellCheck.
             source "${APPDATA_PATH}/apps/${1}/info"
@@ -783,6 +832,7 @@ function waRunCommand() {
             # shellcheck disable=SC2086 #Disable warning for globbing and word splitting
             $FREERDP_COMMAND \
                $RDP_FLAGS_NON_WINDOWS \
+                $ADMIN_FLAG \
                 /d:"$RDP_DOMAIN" \
                 /u:"$RDP_USER" \
                 /p:"$RDP_PASS" \
@@ -806,6 +856,7 @@ function waRunCommand() {
             # shellcheck disable=SC2086 #Disable warning for globbing and word splitting
             $FREERDP_COMMAND \
                $RDP_FLAGS_NON_WINDOWS \
+                $ADMIN_FLAG \
                 /d:"$RDP_DOMAIN" \
                 /u:"$RDP_USER" \
                 /p:"$RDP_PASS" \
@@ -927,6 +978,24 @@ dprint "SCRIPT_ARGS: ${*}"
 dprint "HOME_DIR: ${HOME}"
 waLastRun
 waLoadConfig
+
+# Parse optional flags.
+while [[ "${1:-}" == --* ]]; do
+    case "$1" in
+        --admin) RDP_ADMIN="true"; shift ;;
+        *) break ;;
+    esac
+done
+
+# Handle 'list' subcommand early — no RDP connection needed.
+if [ "${1:-}" = "list" ]; then
+    echo "Installed WinApps applications:"
+    echo ""
+    waListApps
+    echo ""
+    echo "Launch an app with: winapps <app-name>"
+    exit 0
+fi
 
 # macOS always uses 'manual' flavor (no VM management, just RDP to a remote Windows machine).
 if [ "$PLATFORM" = "Darwin" ]; then WAFLAVOR="manual"; fi
