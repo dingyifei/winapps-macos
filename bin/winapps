@@ -783,9 +783,13 @@ function waRunCommand() {
             local APP_CMDLINE=""
             if [ -n "$2" ]; then
                 # Convert UNIX path to Windows tsclient path.
-                # Use bash parameter expansion instead of sed to avoid
-                # backslash escape interpretation in TSCLIENT_HOME.
-                FILE_PATH="${2/#${HOME}/${TSCLIENT_HOME}}"
+                # Use prefix removal + concatenation to preserve
+                # backslashes in TSCLIENT_HOME.
+                if [[ "$2" == "${HOME}"* ]]; then
+                    FILE_PATH="${TSCLIENT_HOME}${2#"${HOME}"}"
+                else
+                    FILE_PATH="$2"
+                fi
                 FILE_PATH="${FILE_PATH//\//\\}"
                 dprint "UNIX_FILE_PATH: ${2}"
                 dprint "WINDOWS_FILE_PATH: ${FILE_PATH}"
